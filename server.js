@@ -3,19 +3,25 @@ var shortid = require('shortid');
 
 console.log('server started.');
 
+var spawnPosition = {
+    x: 0,
+    y: 0,
+    z: 0
+};
+
 var players = {};
 
 io.on('connection', function(socket) {
     
     var clientId = shortid.generate();
-    console.log('client ' + clientId + ' connected.');
+    console.log('client ' + clientId + ' connected');
     
     var player = {
         id: clientId,
         position: {
-            x: 0,
-            y: 0,
-            z: 0
+            x: spawnPosition.x,
+            y: spawnPosition.y,
+            z: spawnPosition.z
         }
     };
     
@@ -27,41 +33,26 @@ io.on('connection', function(socket) {
             continue;
         }
         
-        socket.emit(
-            'spawn',
-            {
-                id: players[key].id,
-                x: players[key].position.x,
-                y: players[key].position.y,
-                z: players[key].position.z
-            });
+        socket.emit('spawn', players[key]);
     }
     
     socket.emit('register', { id: clientId });
     
     // new player, broadcast to others
-    socket.broadcast.emit(
-        'spawn',
-        {
-            id: clientId,
-            x: player.position.x,
-            y: player.position.y,
-            z: player.position.z
-        });
-    
+    socket.broadcast.emit('spawn', player);
+
     // client move handler
     socket.on('move', function(data) {
-        data.id = clientId;
-        
         player.position.x = data.x;
         player.position.y = data.y;
         player.position.z = data.z;
         
         // broadcast to other players
-        socket.broadcast.emit('move', data);
+        socket.broadcast.emit('move', player);
     });
     
     socket.on('follow', function(data) {
+        console.log(clientId + ' started following ' + data.id);
         var outData = {
             targetId: data.id,
             id: clientId
@@ -77,6 +68,32 @@ io.on('connection', function(socket) {
         player.position.z = data.z;
     });
     
+    socket.on('attack', function(data) {
+        console.log(clientId + ' attacked ' + data.id);
+        var outData = {
+            targetId: data.id,
+            id: clientId
+        };
+        
+        // broadcast to all clients (including orginal sender)
+        io.emit('attack', outData);
+    })
+    
+    socket.on('died', function(data) {
+        console.log(clientId + ' died');
+        
+        setTimeout(function() {
+            console.log('respawning ' + clientId);
+            
+            player.position.x = spawnPosition.x;
+            player.position.y = spawnPosition.y;
+            player.position.z = spawnPosition.z;
+            
+            io.emit('respawn', player);
+        }, 5000);
+                   
+    });
+    
     socket.on('updatePosition', function(data) {
         data.id = clientId;
         
@@ -89,7 +106,7 @@ io.on('connection', function(socket) {
     
     // client disconnect handler
     socket.on('disconnect', function() {
-        console.log('client ' + clientId + ' disconnected.');
+        console.log('client ' + clientId + ' disconnected');
         if (players[clientId] != null) {
             delete players[clientId];
             socket.broadcast.emit('disconnected', { id: clientId });
