@@ -13,47 +13,109 @@ var InitializeSocketIO = (() => {
     };
 
     io.on('connection', function(socket) {
+        var authenticated = false;
+        var clientId;
+        var player;
+
+        console.log('new connection');
+
+        var InitializeUser = ((playerInfo) => {
+            socket.emit('register', { id: playerInfo.id });
+
+            player = {
+                id: playerInfo.id,
+                username: playerInfo.username,
+                position: {
+                    x: playerInfo.position.x == null ? 0 : playerInfo.position.x,
+                    y: playerInfo.position.y == null ? 0 : playerInfo.position.y,
+                    z: playerInfo.position.z == null ? 0 : playerInfo.position.z,
+                }
+            };
+
+            players[playerInfo.id] = player;
+            for (var key in players) {
+                if (players[key].id == player.id) {
+                    continue;
+                }
+                
+                socket.emit('spawn', players[key]);
+            }
+
+            socket.broadcast.emit('spawn', player);
+        });
 
         socket.on('login', function(data) {
             console.log('login ' + data.username);
+
+            if (!data.username || !data.password) {
+                console.log('missing username or password');
+                socket.emit('loginFailed', { reason: 'BadArguments' });
+                return;
+            }
+
             var request = new sql.Request();
-            request.query('select * FROM Players', (err, results) => {
-                if (err) {
-                    console.log(err);
-                    return;
-                }
+            request.query(
+                `SELECT * FROM [dbo].[Players] WHERE Username='${data.username}'`,
+                (err, results) => {
+                    if (err) {
+                        console.log(err);
+                        socket.emit('loginFailed')
+                        return;
+                    }
 
-                console.log(results);
-            });
+                    if (results.recordset.length == 0) {
+                        console.log('user not found, creating one');
+                        clientId = shortid.generate();
+
+                        request.query(
+                            `INSERT INTO [dbo].[Players] (Id, Username, Password)
+                            VALUES ('${clientId}', '${data.username}', '${data.password}')`,
+                            (err, results) => {
+                                if (err) {
+                                    console.log(err);
+                                    socket.emit('loginFailed');
+                                    return;
+                                }
+
+                                console.log('created user ' + clientId);
+                                socket.emit('loginSucceeded', { id: clientId });
+                                authenticated = true;
+                                InitializeUser({
+                                    id: clientId,
+                                    username: data.username,
+                                    position: {
+                                        x: spawnPosition.x,
+                                        y: spawnPosition.y,
+                                        z: spawnPosition.z
+                                    }
+                                });
+                            });
+                        return;
+                    }
+
+                    for (var i = 0; i < results.recordset.length; i++) {
+                        if (results.recordset[i].Password === data.password) {
+                            clientId = results.recordset[i].Id;
+                            console.log('password matched user ' + clientId);
+                            socket.emit('loginSucceeded', { id: clientId})
+                            authenticated = true;
+                            InitializeUser({
+                                id: clientId,
+                                username: results.recordset[i].Username,
+                                position: {
+                                    x: results.recordset[i].LocationX,
+                                    y: results.recordset[i].LocationY,
+                                    z: results.recordset[i].LocationZ,
+                                }
+                            });
+                            return;
+                        }
+                    }
+
+                    console.log('password mismatch');
+                    socket.emit('loginFailed', { reason: 'IncorrectPassword' });
+                });
         });
-
-        var clientId = shortid.generate();
-        console.log('client ' + clientId + ' connected');
-
-        var player = {
-            id: clientId,
-            position: {
-                x: spawnPosition.x,
-                y: spawnPosition.y,
-                z: spawnPosition.z
-            }
-        };
-
-        players[clientId] = player;
-
-        // send existing players to new client
-        for (var key in players) {
-            if (players[key].id == clientId) {
-                continue;
-            }
-            
-            socket.emit('spawn', players[key]);
-        }
-
-        socket.emit('register', { id: clientId });
-
-        // new player, broadcast to others
-        socket.broadcast.emit('spawn', player);
 
         // client move handler
         socket.on('move', function(data) {
@@ -144,11 +206,6 @@ sql.connect(sqlConfig)
     .then(pool => {
         console.log('successfully connected to DB ' + sqlConfig.database);
         InitializeSocketIO();
-
-        var request = new sql.Request();
-        request.query('SELECT * FROM Players', (err, results) => {
-            console.log(err);
-        });
     })
     .catch(err => {
         console.log(err);
