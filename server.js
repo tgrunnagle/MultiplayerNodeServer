@@ -117,6 +117,15 @@ var InitializeSocketIO = (() => {
                         if (results.recordset[i].Password === data.password) {
                             clientId = results.recordset[i].Id;
                             console.log('password matched user ' + clientId);
+
+                            for (var key in players) {
+                                if (players[key].id === clientId) {
+                                    console.log('player ' + clientId + ' already connected');
+                                    socket.emit('loginFailed', { reason: 'AlreadyConnected' });
+                                    return;
+                                }
+                            }
+
                             socket.emit('loginSucceeded', { id: clientId})
                             authenticated = true;
                             InitializeUser({
