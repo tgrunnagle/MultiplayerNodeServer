@@ -20,8 +20,6 @@ var InitializeSocketIO = (() => {
         console.log('new connection');
 
         var InitializeUser = ((playerInfo) => {
-            socket.emit('register', { id: playerInfo.id });
-
             player = {
                 id: playerInfo.id,
                 username: playerInfo.username,
@@ -33,6 +31,9 @@ var InitializeSocketIO = (() => {
             };
 
             players[playerInfo.id] = player;
+
+            socket.emit('register', player);
+
             for (var key in players) {
                 if (players[key].id == player.id) {
                     continue;
@@ -42,6 +43,25 @@ var InitializeSocketIO = (() => {
             }
 
             socket.broadcast.emit('spawn', player);
+        });
+
+        var PersistPlayerState = (() => {
+            var request = new sql.Request();
+            request.query(
+                `UPDATE [dbo].[Players]
+                SET LocationX=${player.position.x},
+                    LocationY=${player.position.y},
+                    LocationZ=${player.position.z}
+                WHERE Id='${clientId}'`,
+                (err, results) => {
+                    if (err) {
+                        console.log(err);
+                        return;
+                    }
+
+                    console.log('persisted player ' + clientId);
+                }
+            )
         });
 
         socket.on('login', function(data) {
@@ -184,6 +204,7 @@ var InitializeSocketIO = (() => {
         socket.on('disconnect', function() {
             console.log('client ' + clientId + ' disconnected');
             if (players[clientId] != null) {
+                PersistPlayerState();
                 delete players[clientId];
                 socket.broadcast.emit('disconnected', { id: clientId });
             }
