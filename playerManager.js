@@ -1,4 +1,5 @@
 var io = require('socket.io')(process.env.PORT || 3000);
+var mathjs = require('mathjs');
 
 const spawnPosition = {
     x: 0,
@@ -6,8 +7,17 @@ const spawnPosition = {
     z: 0
 };
 
+const minAttackDistance = 0.1;
+
 var players = {};
 var mySql;
+
+var GetDistance = ((a, b) => {
+    return mathjs.distance(
+        [ a.x, a.y, a.z ],
+        [ b.x, b.y, b.z ]
+    );
+});
 
 var InitializeUser = ((socket, playerInfo) => {
     var player = {
@@ -144,6 +154,10 @@ var OnLogin = ((socket, data, successCallback) => {
         });
 });
 
+// TODO possible client hack - emit 'move' then 'attack' while still
+// far away from the target. Server will allow it because
+// it sets the location immediately on move while the client sets
+// the destination on move.
 var OnMove = ((socket, playerId, data) => {
     var player = players[playerId];
     if (!player) {
@@ -194,22 +208,31 @@ var OnFollowing = ((playerId, data) => {
 var OnAttack = ((socket, playerId, data) => {
     console.log(playerId + ' attacked ' + data.id);
 
-    if (!players[playerId]) {
+    var sourcePlayer = players[playerId];
+    if (!sourcePlayer) {
         console.log('could not find player ' + playerId);
         return;
     }
 
-    if (!players[data.id]) {
+    var targetPlayer = players[data.id];
+    if (!targetPlayer) {
         console.log('could not find player ' + data.id);
         return;
     }
 
-    var outData = {
-        targetId: data.id,
-        id: playerId
-    };
-
-    io.emit('attack', outData);
+    // check if the attacker is within range
+    var distance = GetDistance(sourcePlayer.position, targetPlayer.position);
+    if (distance <= minAttackDistance) {
+        var outData = {
+            targetId: data.id,
+            id: playerId
+        };
+    
+        io.emit('attack', outData);
+    }
+    else {
+        console.log('target is too far away (' + distance + ')');
+    }
 });
 
 var OnDied = ((socket, playerId) => {

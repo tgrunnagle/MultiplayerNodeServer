@@ -1,10 +1,10 @@
 var sqlManager = require('./sqlManager');
-var connectionManager = require('./connectionManager');
+var playerManager = require('./playerManager');
 
 sqlManager
     .Connect()
     .then(function (sql) {
-        connectionManager
+        playerManager
             .Initialize(sql)
             .then(function() {
                 console.log('server successfully started');
