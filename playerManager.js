@@ -44,10 +44,12 @@ var InitializePlayer = ((socket, playerInfo) => {
     }
 
     socket.broadcast.emit('spawn', player);
-    socket.broadcast.emit(
-        'chat',
-        { username: 'Deus', message: 'Please welcome ' + player.username + ' to the game!' });
+    for (var i = 0; i < 11; i++) {
+        socket.broadcast.emit(
+            'chat',
+            { username: 'Deus', message: 'Please welcome ' + player.username + ' to the game! ' + i });
 
+        }
     return player;
 });
 
@@ -277,9 +279,11 @@ var OnChat = ((socket, playerId, data) => {
     if (!sender) {
         console.log('could not find player ' + playerId);
     }
+    
+    console.log(sender.username + ' said: ' + data.message);
 
     data.username = sender.username;
-    socket.broadcast('chat', data);
+    socket.broadcast.emit('chat', data);
 });
 
 var OnDisconnect = ((socket, playerId) => {
