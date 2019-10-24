@@ -20,7 +20,7 @@ var GetDistance = ((a, b) => {
     );
 });
 
-var InitializeUser = ((socket, playerInfo) => {
+var InitializePlayer = ((socket, playerInfo) => {
     var player = {
         id: playerInfo.id,
         username: playerInfo.username,
@@ -44,6 +44,9 @@ var InitializeUser = ((socket, playerInfo) => {
     }
 
     socket.broadcast.emit('spawn', player);
+    socket.broadcast.emit(
+        'chat',
+        { username: 'Deus', message: 'Please welcome ' + player.username + ' to the game!' });
 
     return player;
 });
@@ -103,7 +106,7 @@ var OnLogin = ((socket, data, successCallback) => {
 
                         console.log('created user ' + playerId);
                         socket.emit('loginSucceeded', { id: playerId });
-                        InitializeUser(
+                        InitializePlayer(
                             socket,
                             {
                                 id: playerId,
@@ -134,7 +137,7 @@ var OnLogin = ((socket, data, successCallback) => {
 
                     console.log('player ' + playerId + ' successfully logged in');
                     socket.emit('loginSucceeded', { id: playerId })
-                    InitializeUser(
+                    InitializePlayer(
                         socket,
                         {
                             id: playerId,
@@ -269,6 +272,16 @@ var OnUpdatePosition = ((socket, playerId, data) => {
     socket.broadcast.emit('updatePosition', player);
 });
 
+var OnChat = ((socket, playerId, data) => {
+    var sender = players[playerId];
+    if (!sender) {
+        console.log('could not find player ' + playerId);
+    }
+
+    data.username = sender.username;
+    socket.broadcast('chat', data);
+});
+
 var OnDisconnect = ((socket, playerId) => {
     console.log(playerId + ' disconnected');
     var player = players[playerId];
@@ -347,6 +360,15 @@ module.exports = {
                     }
 
                     OnUpdatePosition(socket, clientId, data);
+                });
+
+                socket.on('chat', function(data) {
+                    if (!clientId) {
+                        console.log('client not authenticated');
+                        return;
+                    }
+
+                    OnChat(socket, clientId, data);
                 });
 
                 socket.on('disconnect', function(data) {
