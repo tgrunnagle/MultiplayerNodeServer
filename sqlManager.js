@@ -5,8 +5,19 @@ const sqlConfig = {
     password: '',
     server: 'DESKTOP1\\SQLEXPRESS',
     database: 'MultiplayerNode',
-    port: 1433
+    port: 1433,
 }
+
+// const sqlConfig = {
+//     user: 'tgrunnagle',
+//     password: '',
+//     server: 'multiplayernode.database.windows.net',
+//     database: 'MultiplayerNode',
+//     port: 1433,
+//     options: {
+//         encrypt: true
+//     }
+// }
 
 module.exports = {
     Connect: function() {

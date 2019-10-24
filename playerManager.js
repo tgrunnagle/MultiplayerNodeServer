@@ -1,13 +1,14 @@
 var io = require('socket.io')(process.env.PORT || 3000);
 var mathjs = require('mathjs');
+var shortid = require('shortid');
 
 const spawnPosition = {
     x: 0,
     y: 0,
     z: 0
 };
-
 const minAttackDistance = 0.1;
+const tableName = "Players";
 
 var players = {};
 var mySql;
@@ -50,7 +51,7 @@ var InitializeUser = ((socket, playerInfo) => {
 var PersistPlayerState = ((player) => {
     var request = new mySql.Request();
     request.query(
-        `UPDATE [dbo].[Players]
+        `UPDATE [dbo].[${tableName}]
         SET LocationX=${player.position.x},
             LocationY=${player.position.y},
             LocationZ=${player.position.z}
@@ -78,7 +79,7 @@ var OnLogin = ((socket, data, successCallback) => {
     var playerId;
     var request = new mySql.Request();
     request.query(
-        `SELECT * FROM [dbo].[Players] WHERE Username='${data.username}'`,
+        `SELECT * FROM [dbo].[${tableName}] WHERE Username='${data.username}'`,
         (err, results) => {
             if (err) {
                 console.log(err);
@@ -91,7 +92,7 @@ var OnLogin = ((socket, data, successCallback) => {
                 playerId = shortid.generate();
 
                 request.query(
-                    `INSERT INTO [dbo].[Players] (Id, Username, Password)
+                    `INSERT INTO [dbo].[${tableName}] (Id, Username, Password)
                     VALUES ('${playerId}', '${data.username}', '${data.password}')`,
                     (err, results) => {
                         if (err) {
