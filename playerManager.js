@@ -72,92 +72,129 @@ var PersistPlayerState = ((player) => {
     )
 });
 
-var OnLogin = ((socket, data, successCallback) => {
-    console.log('login ' + data.username);
-
-    if (!data.username || !data.password) {
-        console.log('missing username or password');
-        socket.emit('loginFailed', { reason: 'BadArguments' });
-        return;
-    }
-
-    var playerId;
-    var request = new mySql.Request();
-    request.query(
-        `SELECT * FROM [dbo].[${tableName}] WHERE Username='${data.username}'`,
-        (err, results) => {
-            if (err) {
-                console.log(err);
-                socket.emit('loginFailed')
-                return;
-            }
-
-            if (results.recordset.length == 0) {
-                console.log('user not found, creating one');
-                playerId = shortid.generate();
-
-                request.query(
-                    `INSERT INTO [dbo].[${tableName}] (Id, Username, Password)
-                    VALUES ('${playerId}', '${data.username}', '${data.password}')`,
-                    (err, results) => {
-                        if (err) {
-                            console.log(err);
-                            socket.emit('loginFailed');
-                            return;
-                        }
-
-                        console.log('created user ' + playerId);
-                        socket.emit('loginSucceeded', { id: playerId });
-                        InitializePlayer(
-                            socket,
-                            {
-                                id: playerId,
-                                username: data.username,
-                                position: {
-                                    x: spawnPosition.x,
-                                    y: spawnPosition.y,
-                                    z: spawnPosition.z
-                                }
-                            });
-                    });
-                successCallback(playerId);
-                return;
-            }
-
-            for (var i = 0; i < results.recordset.length; i++) {
-                if (results.recordset[i].Password === data.password) {
-
-                    for (var key in players) {
-                        if (players[key].id === results.recordset[i].Id) {
-                            console.log('player ' + players[key].id + ' already connected');
-                            socket.emit('loginFailed', { reason: 'AlreadyConnected' });
-                            return;
-                        }
-                    }
-
-                    playerId = results.recordset[i].Id;
-
-                    console.log('player ' + playerId + ' successfully logged in');
-                    socket.emit('loginSucceeded', { id: playerId })
-                    InitializePlayer(
-                        socket,
-                        {
-                            id: playerId,
-                            username: results.recordset[i].Username,
-                            position: {
-                                x: results.recordset[i].LocationX,
-                                y: results.recordset[i].LocationY,
-                                z: results.recordset[i].LocationZ,
-                            }
-                        });
-                    successCallback(playerId);
+var CreatePlayerRecord = ((data) => {
+    var promise = new Promise(function(resolve, reject) {
+        var playerId = shortid.generate();
+        var request = new mySql.Request();
+        request.query(
+            `INSERT INTO [dbo].[${tableName}] (Id, Username, Password)
+            VALUES ('${playerId}', '${data.username}', '${data.password}')`,
+            (error, results) => {
+                if (error) {
+                    reject(error);
                     return;
                 }
-            }
+    
+                console.log('created user record for ' + data.username + ' with id ' + playerId);
+                resolve(playerId);
+            });
+    });
 
-            console.log('password mismatch');
-            socket.emit('loginFailed', { reason: 'IncorrectPassword' });
-        });
+    return promise;
+});
+
+var OnLogin = ((socket, data) => {
+    console.log(data.username + ' is attempting to login');
+
+    var promise = new Promise(function(resolve, reject) {
+        if (!data.username || !data.password) {
+            socket.emit('login', { success: false, failureReason: 'Missing arguments' });
+            reject('missing username or password');
+            return;
+        }
+
+        var request = new mySql.Request();
+        request.query(
+            `SELECT * FROM [dbo].[${tableName}] WHERE Username='${data.username}'`,
+            (error, results) => {
+                if (error) {
+                    socket.emit('login', { success: false, failureReason: 'Internal error' });
+                    reject(error)
+                    return;
+                }
+
+                if (results.recordset.length == 0) {
+                    console.log('user not found, creating one');
+                    CreatePlayerRecord(data)
+                        .then((playerId) => {
+                            socket.emit(
+                                'login',
+                                {
+                                    success: true,
+                                    id: playerId,
+                                    username: data.username,
+                                });
+
+                            InitializePlayer(
+                                socket,
+                                {
+                                    id: playerId,
+                                    username: data.username,
+                                    position: {
+                                        x: spawnPosition.x,
+                                        y: spawnPosition.y,
+                                        z: spawnPosition.z
+                                    }
+                                });
+                            resolve({
+                                id: playerId,
+                                username: data.username
+                            });
+                        })
+                        .catch((error) => {
+                            socket.emit('login', { success: false, failureReason: 'Internal error' });
+                            reject(error);
+                        });
+                    return;
+                }
+
+                if (results.recordset.length > 1) {
+                    socket.emit('login', { success: false, failureReason: 'Internal error' });
+                    reject('Found ' + results.recordset.length + ' players with username ' + data.username);
+                    return;
+                }
+
+                var playerRecord = results.recordset[0];
+                if (playerRecord.Password !== data.password) {
+                    socket.emit('login', { successed: false, failureReason: 'Incorrect password' });
+                    reject('incorrect password for ' + data.username);
+                    return;
+                }
+
+                for (var key in players) {
+                    if (players[key].id === playerRecord.Id) {
+                        socket.emit('login', { success: false, failureReason: 'Already logged in' });
+                        reject('player ' + playerRecord.Username + ' is already logged in');
+                        return;
+                    }
+                }
+
+                socket.emit(
+                    'login',
+                    {
+                        success: true,
+                        id: playerRecord.Id,
+                        username: playerRecord.Username,
+                    });
+                InitializePlayer(
+                    socket,
+                    {
+                        id: playerRecord.Id,
+                        username: playerRecord.Username,
+                        position: {
+                            x: playerRecord.LocationX,
+                            y: playerRecord.LocationY,
+                            z: playerRecord.LocationZ,
+                        }
+                    });
+                resolve({
+                    id: playerRecord.Id,
+                    username: playerRecord.Username
+                });
+            });
+    });
+    
+    return promise;
 });
 
 // TODO possible client hack - emit 'move' then 'attack' while still
@@ -279,7 +316,7 @@ var OnChat = ((socket, playerId, data) => {
     if (!sender) {
         console.log('could not find player ' + playerId);
     }
-    
+
     console.log(sender.username + ' said: ' + data.message);
 
     data.username = sender.username;
@@ -309,7 +346,14 @@ module.exports = {
                 var clientId;
 
                 socket.on('login', function(data) {
-                    OnLogin(socket, data, (id) => { clientId = id; });
+                    OnLogin(socket, data)
+                        .then((info) => {
+                            console.log(info.username + ' (' + info.id + ') successfully logged in');
+                            clientId = info.id;
+                        })
+                        .catch((error) => {
+                            console.log(error);
+                        });
                 });
 
                 socket.on('move', function(data) {
