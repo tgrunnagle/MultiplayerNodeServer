@@ -7,7 +7,7 @@ const spawnPosition = {
     y: 0,
     z: 0
 };
-const minAttackDistance = 0.1;
+const minAttackDistance = 4;
 const tableName = "Players";
 
 var players = {};
@@ -44,12 +44,9 @@ var InitializePlayer = ((socket, playerInfo) => {
     }
 
     socket.broadcast.emit('spawn', player);
-    for (var i = 0; i < 11; i++) {
-        socket.broadcast.emit(
-            'chat',
-            { username: 'Deus', message: 'Please welcome ' + player.username + ' to the game! ' + i });
-
-        }
+    socket.broadcast.emit(
+        'chat',
+        { message: player.username + ' has entered the game!' });
     return player;
 });
 
@@ -336,6 +333,15 @@ var OnDisconnect = ((socket, playerId) => {
     socket.broadcast.emit('disconnected', { id: playerId });
 });
 
+var LogPlayerCount = (() => {
+    var count = 0;
+    for (var key in players) {
+        count++;
+    }
+
+    console.log('there are currently ' + count + ' players');
+});
+
 module.exports = {
     Initialize: function (sql) {
         var promise = new Promise(function(resolve, reject) {
@@ -350,6 +356,7 @@ module.exports = {
                         .then((info) => {
                             console.log(info.username + ' (' + info.id + ') successfully logged in');
                             clientId = info.id;
+                            LogPlayerCount();
                         })
                         .catch((error) => {
                             console.log(error);
@@ -426,6 +433,7 @@ module.exports = {
                     }
 
                     OnDisconnect(socket, clientId);
+                    LogPlayerCount();
                 });
             });
 

@@ -1,0 +1,15 @@
+{
+    "name": "multiplayernodeserver",
+    "version": "0.1.0",
+    "description": "Server for MultiPlayerNode game",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "dependencies": {
+        "mssql": "5.1.0",
+        "socket.io": "2.3.0",
+        "mathjs": "6.2.3",
+        "shortid": "2.2.15"
+    },
+    "author": "Trey Grunnagle"
+}

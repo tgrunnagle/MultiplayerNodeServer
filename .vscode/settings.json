@@ -1,4 +1,9 @@
 {
     "appService.deploySubpath": "",
-    "appService.defaultWebAppToDeploy": "/subscriptions/875ba27b-ce19-43cd-891d-c68bc1878cfb/resourceGroups/appsvc_linux_centralus/providers/Microsoft.Web/sites/multiplayernode"
+    "appService.showBuildDuringDeployPrompt": false,
+    "appService.zipIgnorePattern": [
+        //"node_modules{,/**}",
+        ".vscode{,/**}"
+    ],
+    "appService.defaultWebAppToDeploy": "None"
 }
