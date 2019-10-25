@@ -1,6 +1,7 @@
 var sqlManager = require('./sqlManager');
 var playerManager = require('./playerManager');
 
+
 sqlManager
     .Connect()
     .then(function (sql) {

@@ -2,7 +2,7 @@
     "appService.deploySubpath": "",
     "appService.showBuildDuringDeployPrompt": false,
     "appService.zipIgnorePattern": [
-        //"node_modules{,/**}",
+        "node_modules{,/**}",
         ".vscode{,/**}"
     ],
     "appService.defaultWebAppToDeploy": "None"

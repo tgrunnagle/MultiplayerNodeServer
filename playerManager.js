@@ -1,6 +1,24 @@
-var io = require('socket.io')(process.env.PORT || 3000);
 var mathjs = require('mathjs');
 var shortid = require('shortid');
+
+var port = process.env.PORT || 3000;
+console.log('starting server on port ' + port);
+
+//var io = require('socket.io')(port);
+
+var app = require('express')();
+var http = require('http').createServer(app);
+var io = require('socket.io')(http, {
+    path: '/mpn'
+});
+
+app.get('/', function(request, response) {
+    response.send('I\'m working on port ' + port + '. There are ' + countPlayers + ' players connected.');
+});
+
+http.listen(port, function() {
+    console.log('listening on port ' + port);
+});
 
 const spawnPosition = {
     x: 0,
@@ -11,6 +29,7 @@ const minAttackDistance = 4;
 const tableName = "Players";
 
 var players = {};
+var countPlayers = 0;
 var mySql;
 
 var GetDistance = ((a, b) => {
@@ -33,13 +52,17 @@ var InitializePlayer = ((socket, playerInfo) => {
 
     socket.emit('register', player);
 
+    if (!players[playerInfo.id]) {
+        countPlayers++;
+    }
+
     players[playerInfo.id] = player;
 
     for (var key in players) {
         if (players[key].id == player.id) {
             continue;
         }
-        
+
         socket.emit('spawn', players[key]);
     }
 
@@ -330,16 +353,16 @@ var OnDisconnect = ((socket, playerId) => {
 
     PersistPlayerState(player);
     delete players[playerId];
+    countPlayers--;
+
     socket.broadcast.emit('disconnected', { id: playerId });
+    socket.broadcast.emit(
+        'chat',
+        { message: player.username + ' has left the game!' });
 });
 
 var LogPlayerCount = (() => {
-    var count = 0;
-    for (var key in players) {
-        count++;
-    }
-
-    console.log('there are currently ' + count + ' players');
+    console.log('there are currently ' + countPlayers + ' players');
 });
 
 module.exports = {
@@ -437,7 +460,6 @@ module.exports = {
                 });
             });
 
-            console.log("connection manager initialized");
             resolve();
         });
         

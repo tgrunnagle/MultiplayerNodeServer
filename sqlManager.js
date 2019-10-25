@@ -22,10 +22,9 @@ const sqlConfig = {
 module.exports = {
     Connect: function() {
         var promise = new Promise(function(resolve, reject) {
-            console.log('connecting to DB ' + sqlConfig.server + ' ' + sqlConfig.database);
+            console.log('connecting to SQL DB ' + sqlConfig.server + ' ' + sqlConfig.database);
             sql.connect(sqlConfig)
                 .then((pool) => {
-                    console.log('successfully connected to DB');
                     resolve(sql);
                 })
                 .catch((error) => {
