@@ -9,7 +9,7 @@ var sql = require('mssql');
 // }
 
 const sqlConfig = {
-    user: 'tgrunnagle',
+    user: '',
     password: '',
     server: 'multiplayernode.database.windows.net',
     database: 'MultiplayerNode',

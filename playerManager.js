@@ -9,7 +9,8 @@ console.log('starting server on port ' + port);
 var app = require('express')();
 var http = require('http').createServer(app);
 var io = require('socket.io')(http, {
-    path: '/mpn'
+    path: '/mpn',
+    perMessageDeflate: false
 });
 
 app.get('/', function(request, response) {
@@ -31,6 +32,8 @@ const tableName = "Players";
 var players = {};
 var countPlayers = 0;
 var mySql;
+
+var items = {};
 
 var GetDistance = ((a, b) => {
     return mathjs.distance(
@@ -67,9 +70,7 @@ var InitializePlayer = ((socket, playerInfo) => {
     }
 
     socket.broadcast.emit('spawn', player);
-    socket.broadcast.emit(
-        'chat',
-        { message: player.username + ' has entered the game!' });
+
     return player;
 });
 
@@ -236,10 +237,10 @@ var OnMove = ((socket, playerId, data) => {
 });
 
 var OnFollow = ((socket, playerId, data) => {
-    console.log(playerId + ' started following ' + data.id);
+    console.log(playerId + ' started following ' + data.type + ' ' + data.id);
 
-    if (!players[data.id]) {
-        console.log('could not find player ' + data.id);
+    if (!players[data.id] && !items[data.id]) {
+        console.log('could not find player or item' + data.id);
         return;
     }
 
@@ -297,6 +298,10 @@ var OnAttack = ((socket, playerId, data) => {
         console.log('target is too far away (' + distance + ')');
     }
 });
+
+var OnPickup = ((socket, playerId, data) => {
+    console.log(playerId + ' picked up ' + data.type + ' ' + data.id);
+})
 
 var OnDied = ((socket, playerId) => {
     console.log(playerId + ' died');
@@ -365,6 +370,24 @@ var LogPlayerCount = (() => {
     console.log('there are currently ' + countPlayers + ' players');
 });
 
+var StartItemSpawner = (() => {
+    setInterval(function() {
+        if (countPlayers > 0) {// && itemsCount < 10)
+            var item = {
+                id: shortid.generate(),
+                type: "Gold",
+                position: {
+                    x: mathjs.random(-30, 30),
+                    y: 0.5,
+                    z: mathjs.random(-30, 30),
+                }
+            };
+            items[item.id] = item;
+            io.emit('spawnItem', item);
+        }
+    }, 10000);
+});
+
 module.exports = {
     Initialize: function (sql) {
         var promise = new Promise(function(resolve, reject) {
@@ -422,6 +445,14 @@ module.exports = {
                     OnAttack(socket, clientId, data);
                 });
 
+                socket.on('pickup', function(data) {
+                    if (!clientId) {
+                        console.log('client not authenticated');
+                        return;
+                    }
+
+                    OnPickup(socket, clientId, data);
+                })
                 socket.on('died', function(data) {
                     if (!clientId) {
                         console.log('client not authenticated');
@@ -459,6 +490,8 @@ module.exports = {
                     LogPlayerCount();
                 });
             });
+
+            StartItemSpawner();
 
             resolve();
         });
